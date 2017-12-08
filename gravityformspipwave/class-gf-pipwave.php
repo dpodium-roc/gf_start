@@ -84,7 +84,7 @@ class GFPipwave extends GFPaymentAddOn {
         );
 
         $itemInfo = array();
-        foreach ($order->getAllItems() as $item) {
+        foreach ($x as $item) {
             $product = $item->getProduct();
 
             // some weird things came out (repetition) if without if else
@@ -101,12 +101,42 @@ class GFPipwave extends GFPaymentAddOn {
         if (count($itemInfo) > 0) {
             $this->data['item_info'] = $itemInfo;
         }
+        return $data;
+    }
 
+    function setSignatureParam( $data ) {
+        //need modification, call object manager?
+        //read some_functions_get_information.php [deskstop]
+        $signatureParam = array(
+            'api_key' => $data['api_key'],
+            'api_secret' = $data['api_secret'],
+            'txn_id' => $data['txn_id'],
+            'amount' => $data['amount'],
+            'currency_code' => $data['currency_code'],
+            'action' => $data['action'],
+            'timestamp' => $data['timestamp']
+        );
+        return $signatureParam;
+    }
+    public function maminnn() {
+        $data = $this->setData();
+        $signatureParam = $this->setSignatureParam( $data );
+        $pwSignature = $this->generate_pw_signature( $signatureParam );
+        
+        //after put in pipwave signature, the data is now complete
+        $data['signature'] = $pwSignature;
+
+        //get response to render
+        $response = $this->send_request_to_pw( $data, $data['api_key'] );
+
+        //prepare url for render
         $testMode = $x;
-        $someUrl = $this->getUrlByTestMode( $testMode );
-        $url = $someUrl['URL'];
-        $renderUrl = $someUrl['RENDER_URL'];
-        $loadingImageUrl = $someUrl['LOADING_IMAGE_URL'];
+        $someUrl = $this->setUrl( $testMode );
+
+        //this is the form to redirect buyer to 3rd party
+        $result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
+
+        //how to display $result???
     }
 
     //generate signature
@@ -150,7 +180,7 @@ class GFPipwave extends GFPaymentAddOn {
                 'api_key' => $api_key,
                 'token' => $response['token']
             ]);
-            $this->result = "
+            $result = "
                     <div id='pwscript' class='text-center'></div>
                     <div id='pwloading' style='text-align: center;'>
                         <img src="+$loading_img+" />
@@ -172,13 +202,18 @@ class GFPipwave extends GFPaymentAddOn {
                         })(document, 'script', "+$sdk_url+", 'pw.sdk.min.js', 'pw.sdk.min.js', 'pwscript');
                     </script>";
         } else {
-            $this->result = isset($response['message']) ? (is_array($response['message']) ? implode('; ', $response['message']) : $response['message']) : "Error occured";
+            $result = isset($response['message']) ? (is_array($response['message']) ? implode('; ', $response['message']) : $response['message']) : "Error occured";
         }
     }
 
-    //- IF-ELSE ---------------------------------------------------------------------------------------------------------------------------------------
+    //- OTHERS ---------------------------------------------------------------------------------------------------------------------------------------
     
-    //used in setData() for url
+    //get $someUrl['URL'],['RENDER_URL'],['LOADING_IMAGE_URL']
+    public function setUrl() {
+        $someUrl = $this->getUrlByTestMode( $testMode );
+    }
+
+    //used in setUrl()
     public function getUrlByTestMode( $testMode ) {
         if ( $testMode == 0 ) {
             $someUrl = [
