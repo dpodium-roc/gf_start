@@ -30,8 +30,87 @@ class GFPipwave extends GFPaymentAddOn {
 
     //-PIPWAVE SCRIPT?----------------------------------------------------------------------
 
+    //set data
+    function setData() {
+
+        //add ngrok url to replace 'localhost'
+        //$notificationUrl = 'https://9ca45aa5.ngrok.io/omg/omg/notification/notification/index';
+
+        $data = array(
+            'action' => 'initiate-payment', 
+            'timestamp' => time(), 
+            'api_key' => $x, 
+            'api_secret' => $x, 
+            'txn_id' => $x,
+            'amount' => (float)$x, 
+            'currency_code' => $x, 
+            'shipping_amount' => $x, 
+            'buyer_info' => array(
+                'id' => $x, 
+                'email' => $x, 
+                'first_name' => $x, 
+                'last_name' => $x, 
+                'contact_no' => $x, 
+                'country_code' => $x, 
+                'surcharge_group' => $x, 
+            ), 
+            'shipping_info' => array(
+                'name' => $x . ' ' . $x, 
+                'city' => $x, 
+                'zip' => $x, 
+                'country_iso2' => $x, 
+                'email' => $x, 
+                'contact_no' => $x, 
+                'address1' => $x, 
+                //'address2' => $shipAddress2,
+                'state' => $x, 
+            ), 
+            'billing_info' => array(
+                'name' => $x . ' ' . $x, 
+                'city' => $x, 
+                'zip' => $x, 
+                'country_iso2' => $x, 
+                'email' => $x, 
+                'contact_no' => $x, 
+                'address1' => $x, 
+                //'address2' => $billAddress2,
+                'state' => $x, 
+            ), 
+            'api_override' => array(
+                'success_url' => $x, 
+                'fail_url' => $x, 
+                'notification_url' => $x, //$notificationUrl, 
+            ), 
+        );
+
+        $itemInfo = array();
+        foreach ($order->getAllItems() as $item) {
+            $product = $item->getProduct();
+
+            // some weird things came out (repetition) if without if else
+            if ((float)$product->getPrice()!=0) {
+            $itemInfo[] = array(
+                'name' => $x,
+                'sku' => $x,
+                'currency_code' => $x,
+                'amount' => $x,
+                'quantity' => $x,
+                );
+            }
+        }
+        if (count($itemInfo) > 0) {
+            $this->data['item_info'] = $itemInfo;
+        }
+
+        $testMode = $x;
+        $someUrl = $this->getUrlByTestMode( $testMode );
+        $url = $someUrl['URL'];
+        $renderUrl = $someUrl['RENDER_URL'];
+        $loadingImageUrl = $someUrl['LOADING_IMAGE_URL'];
+    }
+
     //generate signature
-    function generate_pw_signature( $signatureParam ) {
+    public function generate_pw_signature( $signatureParam ) {
         ksort( $signatureParam );
         $signature = "";
         foreach ( $signatureParam as $key => $value ) {
@@ -41,7 +120,7 @@ class GFPipwave extends GFPaymentAddOn {
     }
 
     //fire to pipwave
-    function send_request_to_pw( $data, $pw_api_key ) {
+    public function send_request_to_pw( $data, $pw_api_key ) {
         $agent = "Mozilla/4.0 ( compatible; MSIE 6.0; Windows NT 5.0 )";
         $ch = curl_init();
         curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'x-api-key:' . $pw_api_key ) );
@@ -64,7 +143,60 @@ class GFPipwave extends GFPaymentAddOn {
         return json_decode( $response, true );
     }
 
+    //render sdk THIS is the form that appear 
+    public function renderSdk($response, $api_key, $sdk_url, $loading_img){
+        if ($response['status'] == 200) {
+            $api_data = json_encode([
+                'api_key' => $api_key,
+                'token' => $response['token']
+            ]);
+            $this->result = "
+                    <div id='pwscript' class='text-center'></div>
+                    <div id='pwloading' style='text-align: center;'>
+                        <img src="+$loading_img+" />
+                    </div>
+                    <script type='text/javascript'>
+                        var pwconfig = "+$api_data+";
+                        (function (_, p, w, s, d, k) {
+                            var a = _.createElement('script');
+                            a.setAttribute('src', w + d);
+                            a.setAttribute('id', k);
+                            setTimeout(function() {
+                                var reqPwInit = (typeof reqPipwave != 'undefined');
+                                if (reqPwInit) {
+                                    reqPipwave.require(['pw'], function(pw) {pw.setOpt(pwconfig);pw.startLoad();});
+                                } else {
+                                    _.getElementById(k).parentNode.replaceChild(a, _.getElementById(k));
+                                }
+                            }, 800);
+                        })(document, 'script', "+$sdk_url+", 'pw.sdk.min.js', 'pw.sdk.min.js', 'pwscript');
+                    </script>";
+        } else {
+            $this->result = isset($response['message']) ? (is_array($response['message']) ? implode('; ', $response['message']) : $response['message']) : "Error occured";
+        }
+    }
+
+    //- IF-ELSE ---------------------------------------------------------------------------------------------------------------------------------------
     
+    //used in setData() for url
+    public function getUrlByTestMode( $testMode ) {
+        if ( $testMode == 0 ) {
+            $someUrl = [
+                'URL' => 'https://api.Pipwave.com/payment',
+                'RENDER_URL' = 'https://secure.Pipwave.com/sdk/',
+                'LOADING_IMAGE_URL' = 'https://secure.Pipwave.com/images/loading.gif',
+            ];
+        } else {
+            if ( $testMode == 1 ) {
+                $someUrl = [
+                    'URL' => 'https://staging-api.Pipwave.com/payment';
+                    'RENDER_URL' = 'https://staging-checkout.Pipwave.com/sdk/';
+                    'LOADING_IMAGE_URL' = 'https://staging-checkout.Pipwave.com/images/loading.gif';
+                ];
+            }
+        }
+        return $someUrl;
+    }
     //-ADMIN----------------------------------------------------------------------------
     
     
