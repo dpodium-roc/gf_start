@@ -62,10 +62,13 @@ class GFPipwave extends GFPaymentAddOn {
             'timestamp' => time(), 
             'api_key' => rgar( $settings, 'api_key' ),
             'api_secret' => rgar( $settings, 'api_secret' ),
-            'txn_id' => $x,
+            'txn_id' => rgar( $entry, 'id' ),
             'amount' => (float)$x,
             'currency_code' => rgar( $entry, 'currency' ),
-            'shipping_amount' => $x,
+            //'shipping_amount' => $x,
+            'session_info' => array(
+	            'ip_address' => rgar( $entry, 'ip' ),
+            ),
             'buyer_info' => array(
                 'id' => $x, 
                 'email' => $x, 
@@ -159,14 +162,16 @@ class GFPipwave extends GFPaymentAddOn {
         //get response to render
         $response = $this->send_request_to_pw( $data, $data['api_key'] );
 
+
         //prepare url for render
         $testMode = rgar( $settings, 'test_mode' );
         $someUrl = $this->setUrl( $testMode );
 
         //this is the form to redirect buyer to 3rd party
         $result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
-
-        print_r( $result );
+	    var_dump($result);
+        //echo $result;
+        //print_r( $result );
         //how to display $result???
     }
 
@@ -354,13 +359,13 @@ EOD;
         
         // get biling info section
         $billing_info = parent::get_field( 'billingInformation', $default_settings );
-        
-        //add customer first name / last name
+
+	    //add customer first name / last name
         $billing_fields = $billing_info['field_map'];
         $add_first_name = true;
         $add_last_name = true;
         foreach ( $billing_fields as $mapping ) {
-            //add first/last name if it does not already exist in billing fields
+            //check first/last name if it exist in billing fields
 			if ( $mapping['name'] == 'firstName' ) {
 				$add_first_name = false;
 			} else if ( $mapping['name'] == 'lastName' ) {
@@ -376,11 +381,24 @@ EOD;
 			array_unshift( $billing_info['field_map'], array( 'name' => 'firstName', 'label' => esc_html__( 'First Name', 'translator' ), 'required' => false ) );
 		}
 		$default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
-        
-        
-        
+
+
+        //create shipping information sub from copy and paste billing address
+	    $shipping_info = parent::get_field( 'billingInformation', $default_settings );
+
+	    //change the name, label, tooltip
+	    $shipping_info['name'] = 'shippingInformation';
+	    $shipping_info['label'] = 'Shipping Information';
+	    $shipping_info['tooltip'] = '<h6>Shipping Information</h6>Map your Form Fields to the available listed fields.';
+
+		//place shipping information after billing information
+	    $default_settings = parent::add_field_after( 'billingInformation', $shipping_info, $default_settings );
+
+	    //print_r($default_settings);
         return $default_settings;
     }
+
+
 
 
 
