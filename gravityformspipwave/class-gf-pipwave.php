@@ -65,7 +65,7 @@ class GFPipwave extends GFPaymentAddOn {
             'txn_id' => rgar( $entry, 'id' ),
             'amount' => (float)$x,
             'currency_code' => rgar( $entry, 'currency' ),
-            //'shipping_amount' => $x,
+            'shipping_amount' => $x,
             'session_info' => array(
 	            'ip_address' => rgar( $entry, 'ip' ),
             ),
@@ -148,6 +148,8 @@ class GFPipwave extends GFPaymentAddOn {
         //change payment status to 'processing'
         GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Processing' );
 
+        print_r($feed);
+        echo '\n';
         $settings = $this->get_plugin_settings();
 	    print_r( $entry );
 
@@ -355,6 +357,7 @@ EOD;
             ),
          );
 
+        //var_dump($default_settings);
         $default_settings = parent::add_field_after( 'feedName', $fields, $default_settings );
         
         // get biling info section
@@ -386,6 +389,15 @@ EOD;
         //create shipping information sub from copy and paste billing address
 	    $shipping_info = parent::get_field( 'billingInformation', $default_settings );
 
+	    //var_dump($shipping_info);
+
+	    //get set shipping amount
+	    $fee = $this->feed_shipping_amount();
+		//var_dump($fee);
+
+	    //put shipping ammount before billing information
+	    $default_settings = parent::add_field_before( 'billingInformation', $fee, $default_settings );
+
 	    //change the name, label, tooltip
 	    $shipping_info['name'] = 'shippingInformation';
 	    $shipping_info['label'] = 'Shipping Information';
@@ -398,6 +410,21 @@ EOD;
         return $default_settings;
     }
 
+    public function feed_shipping_amount(){
+	    $test[0] = array(
+		    'name' => 'shipping_amount',
+		    'label' => 'Shipping Amount',
+		    'required' => false,
+	    );
+	    $fee = array(
+		    'name' => 'fee',
+		    'label' => 'Fee',
+		    'type' => 'field_map',
+		    'field_map' => $test,
+		    'tooltip' => '<h6>Shipping Amount</h6>Map your Form Fields to the available listed fields.',
+	    );
+	    return $fee;
+    }
 
 
 
