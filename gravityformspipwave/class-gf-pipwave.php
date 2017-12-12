@@ -22,35 +22,56 @@ class GFPipwave extends GFPaymentAddOn {
     }
 
     //handle hook and loading languages file
+    /*
     public function init() {
         parent::init();
         add_filter( 'gform_submit_button', array( $this, 'form_submit_button' ), 10, 2 );
         add_action( 'gform_after_submission', array( $this, 'after_submission' ), 10, 2 );
     }
-
+    */
     //-PIPWAVE SCRIPT?----------------------------------------------------------------------
 
     //set data
-    function setData() {
+    function setData( $entry, $settings ) {
 
         //add ngrok url to replace 'localhost'
         //$notificationUrl = 'https://9ca45aa5.ngrok.io/omg/omg/notification/notification/index';
+	    /*
+	     * //Set return mode to 2 (PayPal will post info back to page). rm=1 seems to create lots of problems with the redirect back to the site. Defaulting it to 2.
+		$return_mode = '2';
 
+		$return_url = '&return=' . urlencode( $this->return_url( $form['id'], $entry['id'] ) ) . "&rm={$return_mode}";
+
+		//Cancel URL
+		$cancel_url = ! empty( $feed['meta']['cancelUrl'] ) ? '&cancel_return=' . urlencode( $feed['meta']['cancelUrl'] ) : '';
+
+		//Don't display note section
+		$disable_note = ! empty( $feed['meta']['disableNote'] ) ? '&no_note=1' : '';
+
+		//Don't display shipping section
+		$disable_shipping = ! empty( $feed['meta']['disableShipping'] ) ? '&no_shipping=1' : '';
+
+		//URL that will listen to notifications from PayPal
+		$ipn_url = urlencode( get_bloginfo( 'url' ) . '/?page=gf_paypal_ipn' );
+
+	    */
+
+	    $x[] = 'temp variable';
         $data = array(
             'action' => 'initiate-payment', 
             'timestamp' => time(), 
-            'api_key' => $x, 
-            'api_secret' => $x, 
+            'api_key' => rgar( $settings, 'api_key' ),
+            'api_secret' => rgar( $settings, 'api_secret' ),
             'txn_id' => $x,
-            'amount' => (float)$x, 
-            'currency_code' => $x, 
-            'shipping_amount' => $x, 
+            'amount' => (float)$x,
+            'currency_code' => rgar( $entry, 'currency' ),
+            'shipping_amount' => $x,
             'buyer_info' => array(
                 'id' => $x, 
                 'email' => $x, 
-                'first_name' => $x, 
-                'last_name' => $x, 
-                'contact_no' => $x, 
+                'first_name' => $x,
+                'last_name' => $x,
+                'contact_no' => $x,
                 'country_code' => $x, 
                 'surcharge_group' => $x, 
             ), 
@@ -66,15 +87,15 @@ class GFPipwave extends GFPaymentAddOn {
                 'state' => $x, 
             ), 
             'billing_info' => array(
-                'name' => $x . ' ' . $x, 
-                'city' => $x, 
-                'zip' => $x, 
+                'name' => $x . ' ' . $x,
+                'city' => $x,
+                'zip' => $x,
                 'country_iso2' => $x, 
-                'email' => $x, 
+                'email' => $x,
                 'contact_no' => $x, 
-                'address1' => $x, 
+                'address1' => $x,
                 //'address2' => $billAddress2,
-                'state' => $x, 
+                'state' => $x,
             ), 
             'api_override' => array(
                 'success_url' => $x, 
@@ -85,21 +106,22 @@ class GFPipwave extends GFPaymentAddOn {
 
         $itemInfo = array();
         foreach ($x as $item) {
-            $product = $item->getProduct();
+            //$product = $item->getProduct();
 
             // some weird things came out (repetition) if without if else
-            if ((float)$product->getPrice()!=0) {
+            //if ((float)$product->getPrice()!=0) {
+            if ((float)$item!=0) {
             $itemInfo[] = array(
                 'name' => $x,
                 'sku' => $x,
-                'currency_code' => $x,
+                'currency_code' => rgar( $entry, 'currency' ),
                 'amount' => $x,
                 'quantity' => $x,
                 );
             }
         }
         if (count($itemInfo) > 0) {
-            $this->data['item_info'] = $itemInfo;
+            $data['item_info'] = $itemInfo;
         }
         return $data;
     }
@@ -109,7 +131,7 @@ class GFPipwave extends GFPaymentAddOn {
         //read some_functions_get_information.php [deskstop]
         $signatureParam = array(
             'api_key' => $data['api_key'],
-            'api_secret' = $data['api_secret'],
+            'api_secret' => $data['api_secret'],
             'txn_id' => $data['txn_id'],
             'amount' => $data['amount'],
             'currency_code' => $data['currency_code'],
@@ -118,8 +140,16 @@ class GFPipwave extends GFPaymentAddOn {
         );
         return $signatureParam;
     }
-    public function maminnn() {
-        $data = $this->setData();
+    public function redirect_url( $feed, $submission_data, $form, $entry ) {
+
+        //change payment status to 'processing'
+        GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Processing' );
+
+        $settings = $this->get_plugin_settings();
+	    print_r( $entry );
+
+        $data = $this->setData( $entry, $settings );
+        print_r( $data );
         $signatureParam = $this->setSignatureParam( $data );
         $pwSignature = $this->generate_pw_signature( $signatureParam );
         
@@ -130,12 +160,13 @@ class GFPipwave extends GFPaymentAddOn {
         $response = $this->send_request_to_pw( $data, $data['api_key'] );
 
         //prepare url for render
-        $testMode = $x;
+        $testMode = rgar( $settings, 'test_mode' );
         $someUrl = $this->setUrl( $testMode );
 
         //this is the form to redirect buyer to 3rd party
         $result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
 
+        print_r( $result );
         //how to display $result???
     }
 
@@ -153,6 +184,7 @@ class GFPipwave extends GFPaymentAddOn {
     public function send_request_to_pw( $data, $pw_api_key ) {
         $agent = "Mozilla/4.0 ( compatible; MSIE 6.0; Windows NT 5.0 )";
         $ch = curl_init();
+	    curl_setopt( $ch, CURLOPT_PROXY, 'my-proxy.offgamers.lan:3128' );
         curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'x-api-key:' . $pw_api_key ) );
         curl_setopt( $ch, CURLOPT_POST, 1 );
         curl_setopt( $ch, CURLOPT_POSTFIELDS, json_encode( $data ) );
@@ -180,37 +212,44 @@ class GFPipwave extends GFPaymentAddOn {
                 'api_key' => $api_key,
                 'token' => $response['token']
             ]);
-            $result = "
-                    <div id='pwscript' class='text-center'></div>
-                    <div id='pwloading' style='text-align: center;'>
-                        <img src="+$loading_img+" />
+            $result = <<<EOD
+                    <div id="pwscript" class="text-center"></div>
+                    <div id="pwloading" style="text-align: center;">
+                        <img src="$loading_img" />
                     </div>
-                    <script type='text/javascript'>
-                        var pwconfig = "+$api_data+";
+                    <script type="text/javascript">
+                        var pwconfig = $api_data;
                         (function (_, p, w, s, d, k) {
-                            var a = _.createElement('script');
+                            var a = _.createElement("script");
                             a.setAttribute('src', w + d);
                             a.setAttribute('id', k);
                             setTimeout(function() {
                                 var reqPwInit = (typeof reqPipwave != 'undefined');
                                 if (reqPwInit) {
-                                    reqPipwave.require(['pw'], function(pw) {pw.setOpt(pwconfig);pw.startLoad();});
+                                    reqPipwave.require(['pw'], function(pw) {
+                                        pw.setOpt(pwconfig);
+                                        pw.startLoad();
+                                    });
                                 } else {
                                     _.getElementById(k).parentNode.replaceChild(a, _.getElementById(k));
                                 }
                             }, 800);
-                        })(document, 'script', "+$sdk_url+", 'pw.sdk.min.js', 'pw.sdk.min.js', 'pwscript');
-                    </script>";
+                        })(document, 'script', "$sdk_url", "pw.sdk.min.js", "pw.sdk.min.js", "pwscript");
+                    </script>
+EOD;
         } else {
             $result = isset($response['message']) ? (is_array($response['message']) ? implode('; ', $response['message']) : $response['message']) : "Error occured";
         }
+
+        return $result;
     }
 
     //- OTHERS ---------------------------------------------------------------------------------------------------------------------------------------
     
     //get $someUrl['URL'],['RENDER_URL'],['LOADING_IMAGE_URL']
-    public function setUrl() {
+    public function setUrl( $testMode ) {
         $someUrl = $this->getUrlByTestMode( $testMode );
+        return $someUrl;
     }
 
     //used in setUrl()
@@ -218,16 +257,18 @@ class GFPipwave extends GFPaymentAddOn {
         if ( $testMode == 0 ) {
             $someUrl = [
                 'URL' => 'https://api.Pipwave.com/payment',
-                'RENDER_URL' = 'https://secure.Pipwave.com/sdk/',
-                'LOADING_IMAGE_URL' = 'https://secure.Pipwave.com/images/loading.gif',
+                'RENDER_URL' => 'https://secure.Pipwave.com/sdk/',
+                'LOADING_IMAGE_URL' => 'https://secure.Pipwave.com/images/loading.gif',
             ];
         } else {
             if ( $testMode == 1 ) {
                 $someUrl = [
-                    'URL' => 'https://staging-api.Pipwave.com/payment';
-                    'RENDER_URL' = 'https://staging-checkout.Pipwave.com/sdk/';
-                    'LOADING_IMAGE_URL' = 'https://staging-checkout.Pipwave.com/images/loading.gif';
+                    'URL' => 'https://staging-api.Pipwave.com/payment',
+                    'RENDER_URL' => 'https://staging-checkout.Pipwave.com/sdk/',
+                    'LOADING_IMAGE_URL' => 'https://staging-checkout.Pipwave.com/images/loading.gif',
                 ];
+            } else {
+                $someUrl = '';
             }
         }
         return $someUrl;
@@ -264,6 +305,25 @@ class GFPipwave extends GFPaymentAddOn {
                         'required'          => true,
                         'tooltip'           => '<h6>' . esc_html__( 'API Secret', 'translator' ) . '</h6>' . sprintf( esc_html__( 'API Secret provided by pipwave is in this %slink%s.', 'translator' ), '<a href="https://merchant.pipwave.com/development-setting/index" target="_blank">', '</a>' ),
                      ),
+                    //third row
+                    array(
+                        'name'              => 'test_mode',
+                        'label'             => esc_html__( 'Test Mode', 'translator' ),
+                        'type'              => 'radio',
+                        'default_value'     => '0',
+                        'choices'           => array(
+                            array(
+                                'label'     => esc_html__( 'Yes', 'translator' ),
+                                'value'     => '1',
+                            ),
+                            array(
+                                'label'     => esc_html__( 'No', 'translator' ),
+                                'value'     => '0',
+                                'selected'  => true,
+                            ),
+                        ),
+                        'horizontal'        => true,
+                    ),
                     //save
                     array( 
                         'type'              => 'save',
@@ -280,26 +340,7 @@ class GFPipwave extends GFPaymentAddOn {
         $default_settings = parent::feed_settings_fields();
 
         //make test mode field, put in top section
-        $fields = array( 
-            array( 
-                'name'              => 'test_mode',
-                'label'             => esc_html__( 'Test Mode', 'translator' ),
-                'type'              => 'radio',
-                'default_value'     => '0',
-                'choices'           => array( 
-                    array( 
-                        'label'     => esc_html__( 'Yes', 'translator' ),
-                        'value'     => '1',
-                     ),
-                    array( 
-                        'label'     => esc_html__( 'No', 'translator' ),
-                        'value'     => '0',
-                        'selected'  => true,
-                     ),
-                 ),
-                'horizontal'        => true,
-             ),
-            //third row
+        $fields = array(
             array( 
                 'name'              => 'processing_fee_group',
                 'label'             => esc_html__( 'Processing Fee Group', 'translator' ),
@@ -310,11 +351,40 @@ class GFPipwave extends GFPaymentAddOn {
          );
 
         $default_settings = parent::add_field_after( 'feedName', $fields, $default_settings );
+        
+        // get biling info section
+        $billing_info = parent::get_field( 'billingInformation', $default_settings );
+        
+        //add customer first name / last name
+        $billing_fields = $billing_info['field_map'];
+        $add_first_name = true;
+        $add_last_name = true;
+        foreach ( $billing_fields as $mapping ) {
+            //add first/last name if it does not already exist in billing fields
+			if ( $mapping['name'] == 'firstName' ) {
+				$add_first_name = false;
+			} else if ( $mapping['name'] == 'lastName' ) {
+				$add_last_name = false;
+			}
+        }
+        
+        if ( $add_last_name ) {
+			//add last name
+			array_unshift( $billing_info['field_map'], array( 'name' => 'lastName', 'label' => esc_html__( 'Last Name', 'translator' ), 'required' => false ) );
+		}
+		if ( $add_first_name ) {
+			array_unshift( $billing_info['field_map'], array( 'name' => 'firstName', 'label' => esc_html__( 'First Name', 'translator' ), 'required' => false ) );
+		}
+		$default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
+        
+        
+        
+        return $default_settings;
     }
-    
-    
-    
-    
+
+
+
+
     
     
     //--testing-----------------------------------------------------------
@@ -331,19 +401,89 @@ class GFPipwave extends GFPaymentAddOn {
 
         // Return notification events.
         return array(
-            'complete_payment'          => esc_html__( 'Payment Completed', 'gravityformsstripe' ),
-            'refund_payment'            => esc_html__( 'Payment Refunded', 'gravityformsstripe' ),
-            'fail_payment'              => esc_html__( 'Payment Failed', 'gravityformsstripe' ),
+            'complete_payment'          => esc_html__( 'Payment Completed', 'translator' ),
+            'refund_payment'            => esc_html__( 'Payment Refunded', 'translator' ),
+            'fail_payment'              => esc_html__( 'Payment Failed', 'translator' ),
         );
     }
     
+    //-- our own custom pipwave page ---------------------------------------------------------------------------------------------------------
+	public function plugin_page(){
+
+    	$html = <<<EOD
+            <h1>Write here</h1>
+            <pre>
+            To be the most TRUSTED and PREFERRED software development company for EVERYONE to do business online
+
+			We provide merchants SIMPLE , RELIABLE and COST-EFFECTIVE way to sell online
+			
+			Our SIX Core Values:
+			
+			    TEAMWORK
+			    CREATIVITY
+			    <RESPONSIBILITY></RESPONSIBILITY>
+			    ACCOUNTABILITY
+			    TRUSTWORTHY
+			    COMMITMENT
+            </pre>
+            <p>go dashboard>form>setting to configure setting 1</p>
+			<p>go dashboard>form>select form>setting>pipwave to configure setting 2</p>
+EOD;
+    	echo $html;
+		
+	}
+	
     
     
     
-    
-    
-    
-    
-    
-    
+    //=============================================================================
+    public function feed_list_no_item_message() {
+		$settings = $this->get_plugin_settings();
+		if ( ( rgar( $settings, 'api_key' ) == null || rgar( $settings, 'api_key' ) == '' ) || ( rgar( $settings, 'api_secret' ) == null || rgar( $settings, 'api_secret' ) == '' ) ) {
+			return sprintf( esc_html__( 'To get started, please configure your %sPipwave Settings%s!', 'translator' ), '<a href="' . admin_url( 'admin.php?page=gf_settings&subview=' . $this->_slug ) . '">', '</a>' );
+		} else {
+			return parent::feed_list_no_item_message();
+		}
+	}
+	//===========================================================================================
+    public function get_customer_fields() {
+    return array(
+        array( 'name' => 'first_name', 'label' => 'First Name', 'meta_name' => 'billingInformation_firstName' ),
+        array( 'name' => 'last_name', 'label' => 'Last Name', 'meta_name' => 'billingInformation_lastName' ),
+        array( 'name' => 'email', 'label' => 'Email', 'meta_name' => 'billingInformation_email' ),
+        array( 'name' => 'address1', 'label' => 'Address', 'meta_name' => 'billingInformation_address' ),
+        array( 'name' => 'address2', 'label' => 'Address 2', 'meta_name' => 'billingInformation_address2' ),
+        array( 'name' => 'city', 'label' => 'City', 'meta_name' => 'billingInformation_city' ),
+        array( 'name' => 'state', 'label' => 'State', 'meta_name' => 'billingInformation_state' ),
+        array( 'name' => 'zip', 'label' => 'Zip', 'meta_name' => 'billingInformation_zip' ),
+        array( 'name' => 'country', 'label' => 'Country', 'meta_name' => 'billingInformation_country' ),
+        );
+    }
+	//================================================================================
+
+    public function customer_query_string( $feed, $entry ) {
+        $fields = '';
+        foreach ( $this->get_customer_fields() as $field ) {
+            $field_id = $feed['meta'][ $field['meta_name'] ];
+            $value    = rgar( $entry, $field_id );
+
+            if ( $field['name'] == 'country' ) {
+                $value = class_exists( 'GF_Field_Address' ) ? GF_Fields::get( 'address' )->get_country_code( $value ) : GFCommon::get_country_code( $value );
+            } elseif ( $field['name'] == 'state' ) {
+                $value = class_exists( 'GF_Field_Address' ) ? GF_Fields::get( 'address' )->get_us_state_code( $value ) : GFCommon::get_us_state_code( $value );
+            }
+
+            if ( ! empty( $value ) ) {
+                $fields .= "&{$field['name']}=" . urlencode( $value );
+            }
+        }
+
+        return $fields;
+    }
+    //============================================================================================================
+    public function save_feed_settings( $feed_id, $form_id, $settings ){
+        return parent::save_feed_settings( $feed_id, $form_id, $settings );
+    }
+
+    //============================================================================================================
 }
