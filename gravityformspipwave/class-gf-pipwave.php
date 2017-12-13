@@ -63,16 +63,22 @@ class GFPipwave extends GFPaymentAddOn {
 	    $country = rgar( $entry, $feed['meta']['billingInformation_country'] );
 	    $billingCountryCode                   = GF_Fields::get( 'address' )->get_country_code( $country );
 
-	    //var_dump($feed['meta']);
+	    //var_dump(rgar( $entry, $feed['meta']['processing_fee_group'] ));
+	    //var_dump($feed['meta']['processing_fee_group']);
+	    //var_dump($feed['meta']['paymentAmount']);
+	    //var_dump($entry);
+	    //var_dump($feed);
+	    $string = rgar( $entry, $feed['meta']['fee_shipping_amount'] );
+	    $shipping_amount = preg_replace('/[^0-9.]/', '', $string);
         $data = array(
             'action' => 'initiate-payment', 
             'timestamp' => time(), 
             'api_key' => rgar( $settings, 'api_key' ),
             'api_secret' => rgar( $settings, 'api_secret' ),
             'txn_id' => rgar( $entry, 'id' ),
-            'amount' => rgar( $entry, $feed['meta']['paymentAmount'] ),
+            'amount' => (float)rgar( $entry, $feed['meta']['fee_payment_amount'] ),
             'currency_code' => rgar( $entry, 'currency' ),
-            'shipping_amount' => rgar( $entry, $feed['meta']['fee_shipping_amount'] ),
+            'shipping_amount' => (float)$shipping_amount,
             'session_info' => array(
 	            'ip_address' => rgar( $entry, 'ip' ),
             ),
@@ -84,7 +90,7 @@ class GFPipwave extends GFPaymentAddOn {
                 'last_name' => rgar( $entry, $feed['meta']['billingInformation_lastName'] ),
                 'contact_no' => rgar( $entry, $feed['meta']['billingInformation_contactNumber'] ),
                 'country_code' => $billingCountryCode,
-                'surcharge_group' => rgar( $entry, $feed['meta']['processing_fee_group'] ),
+                'surcharge_group' => $feed['meta']['processing_fee_group'],
             ), 
             'shipping_info' => array(
                 'name' => rgar( $entry, $feed['meta']['shippingInformation_firstName'] ) . ' ' . rgar( $entry, $feed['meta']['shippingInformation_lastName'] ),
@@ -159,18 +165,20 @@ class GFPipwave extends GFPaymentAddOn {
         //change payment status to 'processing'
         GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Processing' );
 
-
         $settings = $this->get_plugin_settings();
 	    //print_r( $entry );
 
         $data = $this->setData( $entry, $settings, $feed );
         //print_r( $data );
+	    var_dump($data);
+
         $signatureParam = $this->setSignatureParam( $data );
         $pwSignature = $this->generate_pw_signature( $signatureParam );
         
         //after put in pipwave signature, the data is now complete
         $data['signature'] = $pwSignature;
 
+        var_dump($data['signature']);
         var_dump($data);
         //get response to render
         $response = $this->send_request_to_pw( $data, $data['api_key'] );
@@ -191,7 +199,10 @@ class GFPipwave extends GFPaymentAddOn {
         //echo $result;
         //print_r( $result );
         //how to display $result???
+	    //$return_url = '&return=';
 	    $url = $testMode == 'production' ? $this->production_url : $this->sandbox_url;
+	    //$url .= "?notify_url={$data['api_override']['notification_url']}&charset=UTF-8&currency_code={$data['currency_code']}&custom={$return_url}";
+
 	    return $url;
     }
 
@@ -377,17 +388,27 @@ EOD;
 
         //var_dump($default_settings);
         $default_settings = parent::add_field_after( 'feedName', $fields, $default_settings );
-        
-        // get biling info section
-        $billing_info = parent::get_field( 'billingInformation', $default_settings );
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	    //add customer first name / last name
-        $billing_fields = $billing_info['field_map'];
-        $add_first_name = true;
-        $add_last_name = true;
-        $add_contact_no = true;
-        foreach ( $billing_fields as $mapping ) {
-            //check first/last name if it exist in billing fields
+	    //get set shipping amount
+	    $fee = $this->feed_shipping_amount();
+	    //var_dump($fee);
+
+	    //put shipping ammount before billing information
+	    $default_settings = parent::add_field_before( 'billingInformation', $fee, $default_settings );
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	    // get biling info section
+		$billing_info = parent::get_field( 'billingInformation', $default_settings );
+
+		//add customer first name / last name
+		$billing_fields = $billing_info['field_map'];
+		$add_first_name = true;
+		$add_last_name = true;
+		$add_contact_no = true;
+		foreach ( $billing_fields as $mapping ) {
+			//check first/last name if it exist in billing fields
 			if ( $mapping['name'] == 'firstName' ) {
 				$add_first_name = false;
 			} else if ( $mapping['name'] == 'lastName' ) {
@@ -395,12 +416,12 @@ EOD;
 			} else if ( $mapping['name'] == 'contactNumber' ) {
 				$add_contact_no = false;
 			}
-        }
+		}
 
-	    if ( $add_contact_no ) {
-		    array_unshift( $billing_info['field_map'], array( 'name' => 'contactNumber', 'label' => esc_html__( 'Contact Number', 'translator' ), 'required' => false ) );
-	    }
-        if ( $add_last_name ) {
+		if ( $add_contact_no ) {
+			array_unshift( $billing_info['field_map'], array( 'name' => 'contactNumber', 'label' => esc_html__( 'Contact Number', 'translator' ), 'required' => false ) );
+		}
+		if ( $add_last_name ) {
 			//add last name
 			array_unshift( $billing_info['field_map'], array( 'name' => 'lastName', 'label' => esc_html__( 'Last Name', 'translator' ), 'required' => false ) );
 		}
@@ -408,39 +429,53 @@ EOD;
 			array_unshift( $billing_info['field_map'], array( 'name' => 'firstName', 'label' => esc_html__( 'First Name', 'translator' ), 'required' => false ) );
 		}
 
-	    $default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
+		//coz buyer.id and buyer.email need this
+	    $billing_info['field_map'][3]['required'] = true;
+	    //var_dump($billing_info['field_map'][3] );
+
+		$default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
 
 
-        //create shipping information sub from copy and paste billing address
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	    //create shipping information sub from copy and paste billing address
 	    $shipping_info = parent::get_field( 'billingInformation', $default_settings );
 
 	    //var_dump($shipping_info);
-
-	    //get set shipping amount
-	    $fee = $this->feed_shipping_amount();
-		//var_dump($fee);
-
-	    //put shipping ammount before billing information
-	    $default_settings = parent::add_field_before( 'billingInformation', $fee, $default_settings );
 
 	    //change the name, label, tooltip
 	    $shipping_info['name'] = 'shippingInformation';
 	    $shipping_info['label'] = 'Shipping Information';
 	    $shipping_info['tooltip'] = '<h6>Shipping Information</h6>Map your Form Fields to the available listed fields.';
 
-		//place shipping information after billing information
+	    $shipping_info['field_map'][3]['required'] = false;
+	    //var_dump($shipping_info['field_map'][3] );
+
+	    //place shipping information after billing information
 	    $default_settings = parent::add_field_after( 'billingInformation', $shipping_info, $default_settings );
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
 
 	    //print_r($default_settings);
         return $default_settings;
     }
 
-    public function feed_shipping_amount(){
+    public function feed_shipping_amount() {
 	    $test[0] = array(
+		    'name' => 'payment_amount',
+		    'label' => 'Payment Amount',
+		    'required' => true,
+		    'tooltip' => '<h6>Payment Amount</h6>Map this to the final amount.',
+	    );
+	    $test[1] = array(
 		    'name' => 'shipping_amount',
 		    'label' => 'Shipping Amount',
 		    'required' => false,
 	    );
+
 	    $fee = array(
 		    'name' => 'fee',
 		    'label' => 'Fee',
