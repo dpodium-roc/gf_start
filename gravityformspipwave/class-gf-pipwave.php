@@ -397,48 +397,18 @@ EOD;
 	    //put shipping ammount before billing information
 	    $default_settings = parent::add_field_before( 'billingInformation', $fee, $default_settings );
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	    //get set product
+	    $product = $this->feed_product();
+	    //var_dump($fee);
+
+	    //put shipping ammount before billing information
+	    $default_settings = parent::add_field_before( 'billingInformation', $product, $default_settings );
+
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	    // get biling info section
-		$billing_info = parent::get_field( 'billingInformation', $default_settings );
-
-		//add customer first name / last name
-		$billing_fields = $billing_info['field_map'];
-		$add_first_name = true;
-		$add_last_name = true;
-		$add_contact_no = true;
-		foreach ( $billing_fields as $mapping ) {
-			//check first/last name if it exist in billing fields
-			if ( $mapping['name'] == 'firstName' ) {
-				$add_first_name = false;
-			} else if ( $mapping['name'] == 'lastName' ) {
-				$add_last_name = false;
-			} else if ( $mapping['name'] == 'contactNumber' ) {
-				$add_contact_no = false;
-			}
-		}
-
-		if ( $add_contact_no ) {
-			array_unshift( $billing_info['field_map'], array( 'name' => 'contactNumber', 'label' => esc_html__( 'Contact Number', 'translator' ), 'required' => false ) );
-		}
-		if ( $add_last_name ) {
-			//add last name
-			array_unshift( $billing_info['field_map'], array( 'name' => 'lastName', 'label' => esc_html__( 'Last Name', 'translator' ), 'required' => false ) );
-		}
-		if ( $add_first_name ) {
-			array_unshift( $billing_info['field_map'], array( 'name' => 'firstName', 'label' => esc_html__( 'First Name', 'translator' ), 'required' => false ) );
-		}
-
-		//coz buyer.id and buyer.email need this
-	    $billing_info['field_map'][3]['required'] = true;
-	    //var_dump($billing_info['field_map'][3] );
-
-		$default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
-
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	    //create shipping information sub from copy and paste billing address
+		//create shipping information sub from copy and paste billing address
 	    $shipping_info = parent::get_field( 'billingInformation', $default_settings );
 
 	    //var_dump($shipping_info);
@@ -448,11 +418,50 @@ EOD;
 	    $shipping_info['label'] = 'Shipping Information';
 	    $shipping_info['tooltip'] = '<h6>Shipping Information</h6>Map your Form Fields to the available listed fields.';
 
-	    $shipping_info['field_map'][3]['required'] = false;
-	    //var_dump($shipping_info['field_map'][3] );
+	    //add customer first name / last name
+	    $shipping_fields = $shipping_info['field_map'];
+	    $add_first_name = true;
+	    $add_last_name = true;
+	    $add_contact_no = true;
+	    foreach ( $shipping_fields as $mapping ) {
+		    //check first/last name if it exist in billing fields
+		    if ( $mapping['name'] == 'firstName' ) {
+			    $add_first_name = false;
+		    } else if ( $mapping['name'] == 'lastName' ) {
+			    $add_last_name = false;
+		    } else if ( $mapping['name'] == 'contactNumber' ) {
+			    $add_contact_no = false;
+		    }
+	    }
+
+	    if ( $add_contact_no ) {
+		    array_unshift( $shipping_info['field_map'], array( 'name' => 'contactNumber', 'label' => esc_html__( 'Contact Number', 'translator' ), 'required' => false ) );
+	    }
+	    if ( $add_last_name ) {
+		    //add last name
+		    array_unshift( $shipping_info['field_map'], array( 'name' => 'lastName', 'label' => esc_html__( 'Last Name', 'translator' ), 'required' => false ) );
+	    }
+	    if ( $add_first_name ) {
+		    array_unshift( $shipping_info['field_map'], array( 'name' => 'firstName', 'label' => esc_html__( 'First Name', 'translator' ), 'required' => false ) );
+	    }
 
 	    //place shipping information after billing information
 	    $default_settings = parent::add_field_after( 'billingInformation', $shipping_info, $default_settings );
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	    // get biling info section
+	    $billing_info = parent::get_field( 'shippingInformation', $default_settings );
+
+	    //coz buyer.id and buyer.email need this
+	    $billing_info['field_map'][3]['required'] = true;
+	    //coz buyer.country need this
+	    $billing_info['field_map'][9]['required'] = true;
+	    //var_dump($billing_info['field_map'][3] );
+
+	    $default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
+
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -485,6 +494,22 @@ EOD;
 	    );
 	    return $fee;
     }
+	public function feed_product() {
+		$test[0] = array(
+			'name' => 'product_name',
+			'label' => 'Product Name',
+			'required' => false,
+			'tooltip' => '<h6>Product</h6>Map this to your product.',
+		);
+
+		$product = array(
+			'name' => 'product',
+			'label' => 'Product',
+			'type' => 'field_map',
+			'field_map' => $test,
+		);
+		return $product;
+	}
 
 
 
