@@ -32,7 +32,7 @@ class GFPipwave extends GFPaymentAddOn {
     //-PIPWAVE SCRIPT?----------------------------------------------------------------------
 
     //set data
-    function setData( $entry, $settings ) {
+    function setData( $entry, $settings, $feed ) {
 
         //add ngrok url to replace 'localhost'
         //$notificationUrl = 'https://9ca45aa5.ngrok.io/omg/omg/notification/notification/index';
@@ -56,57 +56,66 @@ class GFPipwave extends GFPaymentAddOn {
 
 	    */
 
+	    $feed['meta']['feedName'];
 	    $x[] = 'temp variable';
+	    $country = rgar( $entry, $feed['meta']['shippingInformation_country'] );
+	    $shippingCountryCode                   = GF_Fields::get( 'address' )->get_country_code( $country );
+	    $country = rgar( $entry, $feed['meta']['billingInformation_country'] );
+	    $billingCountryCode                   = GF_Fields::get( 'address' )->get_country_code( $country );
+
+	    //var_dump($feed['meta']);
         $data = array(
             'action' => 'initiate-payment', 
             'timestamp' => time(), 
             'api_key' => rgar( $settings, 'api_key' ),
             'api_secret' => rgar( $settings, 'api_secret' ),
             'txn_id' => rgar( $entry, 'id' ),
-            'amount' => (float)$x,
+            'amount' => rgar( $entry, $feed['meta']['paymentAmount'] ),
             'currency_code' => rgar( $entry, 'currency' ),
-            'shipping_amount' => $x,
+            'shipping_amount' => rgar( $entry, $feed['meta']['fee_shipping_amount'] ),
             'session_info' => array(
 	            'ip_address' => rgar( $entry, 'ip' ),
             ),
             'buyer_info' => array(
-                'id' => $x, 
-                'email' => $x, 
-                'first_name' => $x,
-                'last_name' => $x,
-                'contact_no' => $x,
-                'country_code' => $x, 
-                'surcharge_group' => $x, 
+            	//not sure about this id thing
+                'id' => rgar( $entry, $feed['meta']['billingInformation_email'] ),
+                'email' => rgar( $entry, $feed['meta']['billingInformation_email'] ),
+                'first_name' => rgar( $entry, $feed['meta']['billingInformation_firstName'] ),
+                'last_name' => rgar( $entry, $feed['meta']['billingInformation_lastName'] ),
+                'contact_no' => rgar( $entry, $feed['meta']['billingInformation_contactNumber'] ),
+                'country_code' => $billingCountryCode,
+                'surcharge_group' => rgar( $entry, $feed['meta']['processing_fee_group'] ),
             ), 
             'shipping_info' => array(
-                'name' => $x . ' ' . $x, 
-                'city' => $x, 
-                'zip' => $x, 
-                'country_iso2' => $x, 
-                'email' => $x, 
-                'contact_no' => $x, 
-                'address1' => $x, 
-                //'address2' => $shipAddress2,
-                'state' => $x, 
+                'name' => rgar( $entry, $feed['meta']['shippingInformation_firstName'] ) . ' ' . rgar( $entry, $feed['meta']['shippingInformation_lastName'] ),
+                'city' => rgar( $entry, $feed['meta']['shippingInformation_city'] ),
+                'zip' => rgar( $entry, $feed['meta']['shippingInformation_zip'] ),
+                'country_iso2' => $shippingCountryCode,
+                'email' => rgar( $entry, $feed['meta']['shippingInformation_email'] ),
+                'contact_no' => rgar( $entry, $feed['meta']['shippingInformation_contactNumber'] ),
+                'address1' => rgar( $entry, $feed['meta']['shippingInformation_address'] ),
+                'address2' => rgar( $entry, $feed['meta']['shippingInformation_address2'] ),
+                'state' => rgar( $entry, $feed['meta']['shippingInformation_state'] ),
             ), 
             'billing_info' => array(
-                'name' => $x . ' ' . $x,
-                'city' => $x,
-                'zip' => $x,
-                'country_iso2' => $x, 
-                'email' => $x,
-                'contact_no' => $x, 
-                'address1' => $x,
-                //'address2' => $billAddress2,
-                'state' => $x,
+	            'name' => rgar( $entry, $feed['meta']['billingInformation_firstName'] ) . ' ' . rgar( $entry, $feed['meta']['billingInformation_lastName'] ),
+	            'city' => rgar( $entry, $feed['meta']['billingInformation_city'] ),
+	            'zip' => rgar( $entry, $feed['meta']['billingInformation_zip'] ),
+	            'country_iso2' => $billingCountryCode,
+	            'email' => rgar( $entry, $feed['meta']['billingInformation_email'] ),
+	            'contact_no' => rgar( $entry, $feed['meta']['billingInformation_contactNumber'] ),
+	            'address1' => rgar( $entry, $feed['meta']['billingInformation_address'] ),
+	            'address2' => rgar( $entry, $feed['meta']['billingInformation_address2'] ),
+	            'state' => rgar( $entry, $feed['meta']['billingInformation_state'] ),
             ), 
             'api_override' => array(
-                'success_url' => $x, 
-                'fail_url' => $x, 
-                'notification_url' => $x, //$notificationUrl, 
+                'success_url' => 'www.google.com',
+                'fail_url' => 'www.yahoo.com',
+                'notification_url' => 'www.pipwave.com', //$notificationUrl,
             ), 
         );
 
+        /*
         $itemInfo = array();
         foreach ($x as $item) {
             //$product = $item->getProduct();
@@ -126,7 +135,9 @@ class GFPipwave extends GFPaymentAddOn {
         if (count($itemInfo) > 0) {
             $data['item_info'] = $itemInfo;
         }
+        */
         return $data;
+
     }
 
     function setSignatureParam( $data ) {
@@ -139,7 +150,7 @@ class GFPipwave extends GFPaymentAddOn {
             'amount' => $data['amount'],
             'currency_code' => $data['currency_code'],
             'action' => $data['action'],
-            'timestamp' => $data['timestamp']
+            'timestamp' => $data['timestamp'],
         );
         return $signatureParam;
     }
@@ -148,33 +159,40 @@ class GFPipwave extends GFPaymentAddOn {
         //change payment status to 'processing'
         GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Processing' );
 
-        print_r($feed);
-        echo '\n';
-        $settings = $this->get_plugin_settings();
-	    print_r( $entry );
 
-        $data = $this->setData( $entry, $settings );
-        print_r( $data );
+        $settings = $this->get_plugin_settings();
+	    //print_r( $entry );
+
+        $data = $this->setData( $entry, $settings, $feed );
+        //print_r( $data );
         $signatureParam = $this->setSignatureParam( $data );
         $pwSignature = $this->generate_pw_signature( $signatureParam );
         
         //after put in pipwave signature, the data is now complete
         $data['signature'] = $pwSignature;
 
+        var_dump($data);
         //get response to render
         $response = $this->send_request_to_pw( $data, $data['api_key'] );
 
 
         //prepare url for render
         $testMode = rgar( $settings, 'test_mode' );
+        echo $testMode;
         $someUrl = $this->setUrl( $testMode );
 
         //this is the form to redirect buyer to 3rd party
-        $result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
+	    var_dump($someUrl);
+	    var_dump($data['api_key']);
+	    var_dump($response);
+	    $result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
 	    var_dump($result);
+	    echo $result;
         //echo $result;
         //print_r( $result );
         //how to display $result???
+	    $url = $testMode == 'production' ? $this->production_url : $this->sandbox_url;
+	    return $url;
     }
 
     //generate signature
@@ -367,15 +385,21 @@ EOD;
         $billing_fields = $billing_info['field_map'];
         $add_first_name = true;
         $add_last_name = true;
+        $add_contact_no = true;
         foreach ( $billing_fields as $mapping ) {
             //check first/last name if it exist in billing fields
 			if ( $mapping['name'] == 'firstName' ) {
 				$add_first_name = false;
 			} else if ( $mapping['name'] == 'lastName' ) {
 				$add_last_name = false;
+			} else if ( $mapping['name'] == 'contactNumber' ) {
+				$add_contact_no = false;
 			}
         }
-        
+
+	    if ( $add_contact_no ) {
+		    array_unshift( $billing_info['field_map'], array( 'name' => 'contactNumber', 'label' => esc_html__( 'Contact Number', 'translator' ), 'required' => false ) );
+	    }
         if ( $add_last_name ) {
 			//add last name
 			array_unshift( $billing_info['field_map'], array( 'name' => 'lastName', 'label' => esc_html__( 'Last Name', 'translator' ), 'required' => false ) );
@@ -383,7 +407,8 @@ EOD;
 		if ( $add_first_name ) {
 			array_unshift( $billing_info['field_map'], array( 'name' => 'firstName', 'label' => esc_html__( 'First Name', 'translator' ), 'required' => false ) );
 		}
-		$default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
+
+	    $default_settings = parent::replace_field( 'billingInformation', $billing_info, $default_settings );
 
 
         //create shipping information sub from copy and paste billing address
@@ -491,7 +516,7 @@ EOD;
 		}
 	}
 	//===========================================================================================
-    public function get_customer_fields() {
+    public function get_feed_value() {
     return array(
         array( 'name' => 'first_name', 'label' => 'First Name', 'meta_name' => 'billingInformation_firstName' ),
         array( 'name' => 'last_name', 'label' => 'Last Name', 'meta_name' => 'billingInformation_lastName' ),
