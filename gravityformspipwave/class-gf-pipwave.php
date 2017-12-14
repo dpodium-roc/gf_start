@@ -31,6 +31,25 @@ class GFPipwave extends GFPaymentAddOn {
     */
     //-PIPWAVE SCRIPT?----------------------------------------------------------------------
 
+	//- not sure what this is--------------------------------------------------------------------------------------
+	public function init_admin() {
+
+		parent::init_admin();
+		add_filter( 'gform_submit_button', 'form_submit_button', 10, 2 );
+	}
+	/*
+	//submit button
+	function form_submit_button( $button, $form ) {
+		return "<button class='button' id='gform_submit_button_{$form['id']}' onclick='pipwaveIntegration( )'><span>Submit</span></button>";
+	}
+	*/
+
+	//- after submission -------------------------------------------------------------------------------------------------------------
+	public function pipwaveIntegration( $entry, $feed ) {
+
+		die();
+	}
+
     //set data
     function setData( $entry, $settings, $feed ) {
 
@@ -165,44 +184,53 @@ class GFPipwave extends GFPaymentAddOn {
         //change payment status to 'processing'
         GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Processing' );
 
-        $settings = $this->get_plugin_settings();
+
+	    $settings = $this->get_plugin_settings();
 	    //print_r( $entry );
 
-        $data = $this->setData( $entry, $settings, $feed );
-        //print_r( $data );
-	    var_dump($data);
+	    $data = $this->setData( $entry, $settings, $feed );
+	    //print_r( $data );
+	    //var_dump($data);
 
-        $signatureParam = $this->setSignatureParam( $data );
-        $pwSignature = $this->generate_pw_signature( $signatureParam );
-        
-        //after put in pipwave signature, the data is now complete
-        $data['signature'] = $pwSignature;
+	    $signatureParam = $this->setSignatureParam( $data );
+	    $pwSignature = $this->generate_pw_signature( $signatureParam );
 
-        var_dump($data['signature']);
-        var_dump($data);
-        //get response to render
-        $response = $this->send_request_to_pw( $data, $data['api_key'] );
+	    //after put in pipwave signature, the data is now complete
+	    $data['signature'] = $pwSignature;
 
+	    //var_dump($data['signature']);
+	    //var_dump($data);
 
-        //prepare url for render
-        $testMode = rgar( $settings, 'test_mode' );
-        echo $testMode;
-        $someUrl = $this->setUrl( $testMode );
+	    //prepare url for render
+	    $testMode = rgar( $settings, 'test_mode' );
+	    //echo $testMode;
+	    $someUrl = $this->setUrl( $testMode );
 
-        //this is the form to redirect buyer to 3rd party
-	    var_dump($someUrl);
-	    var_dump($data['api_key']);
+	    //this is the form to redirect buyer to 3rd party
+	    //var_dump($someUrl);
+	    //var_dump($data['api_key']);
+	    $response = $this->send_request_to_pw( $data, $data['api_key'], $someUrl['URL'] );
 	    var_dump($response);
-	    $result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
-	    var_dump($result);
-	    echo $result;
-        //echo $result;
+	    //$result = $this->renderSdk( $response, $data['api_key'], $someUrl['RENDER_URL'], $someUrl['LOADING_IMAGE_URL'] );
+	    //var_dump($result);
+	    //echo $result;
+	    //echo $result;
+
         //print_r( $result );
         //how to display $result???
 	    //$return_url = '&return=';
-	    $url = $testMode == 'production' ? $this->production_url : $this->sandbox_url;
+	    //$url = 'http://staging-api-ag.pipwave.com/payment';//$testMode == 'production' ? $this->production_url : $this->sandbox_url;
 	    //$url .= "?notify_url={$data['api_override']['notification_url']}&charset=UTF-8&currency_code={$data['currency_code']}&custom={$return_url}";
+	    //$return_url = 'http://staging-api-ag.pipwave.com/payment';
+	    //$ipn_url = '';
+	    //$currency = $data['currency_code'];
 
+	    //$data = json_encode( $data );
+	    //$url .= "?notify_url={$ipn_url}&charset=UTF-8&currency_code={$currency}&data={$data}&pw_api_key={data['api_key']}";
+	    //$url .= "?data={$data}&pw_api_key={$data['api_key']}";
+		$url = 'https://staging-checkout.pipwave.com/pay?token=';
+		$url .= $response['token'];
+	    $query_string = '';
 	    return $url;
     }
 
@@ -217,14 +245,14 @@ class GFPipwave extends GFPaymentAddOn {
     }
 
     //fire to pipwave
-    public function send_request_to_pw( $data, $pw_api_key ) {
+    public function send_request_to_pw( $data, $pw_api_key, $url ) {
         $agent = "Mozilla/4.0 ( compatible; MSIE 6.0; Windows NT 5.0 )";
         $ch = curl_init();
 	    curl_setopt( $ch, CURLOPT_PROXY, 'my-proxy.offgamers.lan:3128' );
         curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'x-api-key:' . $pw_api_key ) );
         curl_setopt( $ch, CURLOPT_POST, 1 );
         curl_setopt( $ch, CURLOPT_POSTFIELDS, json_encode( $data ) );
-        curl_setopt( $ch, CURLOPT_URL, 'https://api.pipwave.com/payment' );
+        curl_setopt( $ch, CURLOPT_URL, $url );
         curl_setopt( $ch, CURLOPT_VERBOSE, 1 );
         curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, 2 );
         curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, FALSE );
@@ -454,6 +482,10 @@ EOD;
 	    // get biling info section
 	    $billing_info = parent::get_field( 'shippingInformation', $default_settings );
 
+	    $billing_info['name'] = 'billingInformation';
+	    $billing_info['label'] = 'Billing Information';
+	    $billing_info['tooltip'] = '<h6>Billing Information</h6>Map your Form Fields to the available listed fields.';
+
 	    //coz buyer.id and buyer.email need this
 	    $billing_info['field_map'][3]['required'] = true;
 	    //coz buyer.country need this
@@ -575,7 +607,7 @@ EOD;
 			return parent::feed_list_no_item_message();
 		}
 	}
-	//===========================================================================================
+	//= this not needed anymore ==========================================================================================
     public function get_feed_value() {
     return array(
         array( 'name' => 'first_name', 'label' => 'First Name', 'meta_name' => 'billingInformation_firstName' ),
