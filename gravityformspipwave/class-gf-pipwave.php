@@ -6,16 +6,16 @@ GFForms::include_payment_addon_framework();
 
 class GFPipwave extends GFPaymentAddOn {
 
-    protected $_version = GF_PIPWAVE_VERSION;
-    protected $_min_gravityforms_version = '1.9';
-    protected $_slug = 'gravityformspipwave';
-    protected $_path = 'gravityformspipwave/pipwave.php';
-    protected $_full_path = __FILE__;
-    protected $_title = 'Gravity Forms Pipwave Add-On';
-    protected $_short_title = 'Pipwave';
-	protected $_supports_callbacks = true;
+    protected $_version                     = GF_PIPWAVE_VERSION;
+    protected $_min_gravityforms_version    = '1.9';
+    protected $_slug                        = 'gravityformspipwave';
+    protected $_path                        = 'gravityformspipwave/pipwave.php';
+    protected $_full_path                   = __FILE__;
+    protected $_title                       = 'Gravity Forms Pipwave Add-On';
+    protected $_short_title                 = 'Pipwave';
+	protected $_supports_callbacks          = true;
 
-    private static $_instance = null;
+    private static $_instance               = null;
 
     public static function get_instance() {
         if( self::$_instance == null ) {
@@ -35,45 +35,27 @@ class GFPipwave extends GFPaymentAddOn {
     //-PIPWAVE SCRIPT?----------------------------------------------------------------------
 
 
-    //set data
-    function setData( $entry, $settings, $feed ) {
+    //set data [prepare data needed to send to pipwave]
+    public function setData( $entry, $settings, $feed ) {
 
-        //add ngrok url to replace 'localhost'
-        //$notificationUrl = 'https://9ca45aa5.ngrok.io/omg/omg/notification/notification/index';
-	    /*
-	     * //Set return mode to 2 (PayPal will post info back to page). rm=1 seems to create lots of problems with the redirect back to the site. Defaulting it to 2.
-		$return_mode = '2';
-
-		$return_url = '&return=' . urlencode( $this->return_url( $form['id'], $entry['id'] ) ) . "&rm={$return_mode}";
-
-		//Cancel URL
-		$cancel_url = ! empty( $feed['meta']['cancelUrl'] ) ? '&cancel_return=' . urlencode( $feed['meta']['cancelUrl'] ) : '';
-
-		//Don't display note section
-		$disable_note = ! empty( $feed['meta']['disableNote'] ) ? '&no_note=1' : '';
-
-		//Don't display shipping section
-		$disable_shipping = ! empty( $feed['meta']['disableShipping'] ) ? '&no_shipping=1' : '';
-
-		//URL that will listen to notifications from PayPal
-		$ipn_url = urlencode( get_bloginfo( 'url' ) . '/?page=gf_paypal_ipn' );
-
-	    */
-
-	    $feed['meta']['feedName'];
-	    $x[] = 'temp variable';
 	    $country = rgar( $entry, $feed['meta']['shippingInformation_country'] );
 	    $shippingCountryCode                   = GF_Fields::get( 'address' )->get_country_code( $country );
+
 	    $country = rgar( $entry, $feed['meta']['billingInformation_country'] );
 	    $billingCountryCode                   = GF_Fields::get( 'address' )->get_country_code( $country );
 
-	    //var_dump(rgar( $entry, $feed['meta']['processing_fee_group'] ));
-	    //var_dump($feed['meta']['processing_fee_group']);
-	    //var_dump($feed['meta']['paymentAmount']);
 	    //var_dump($entry);
 	    //var_dump($feed);
 	    $string = rgar( $entry, $feed['meta']['fee_shipping_amount'] );
-	    $shipping_amount = preg_replace('/[^0-9.]/', '', $string);
+	    $shipping_amount = preg_replace('/[^0-9.]/', '', $string );
+
+	    //modify success url
+	    $pageURL = $this->get_current_url();
+
+	    $urlInfo = 'ids=' . urlencode($feed['form_id']) . '|' . urlencode( rgar( $entry, 'id' ) );
+	    $urlInfo .= '&hash=' . wp_hash( $urlInfo );
+	    $successUrl = add_query_arg( 'gf_pipwave_return', base64_encode($urlInfo), $pageURL );
+
         $data = array(
             'action' => 'initiate-payment', 
             'timestamp' => time(), 
@@ -119,40 +101,16 @@ class GFPipwave extends GFPaymentAddOn {
 	            'state' => rgar( $entry, $feed['meta']['billingInformation_state'] ),
             ), 
             'api_override' => array(
-                'success_url' => ! empty( $feed['meta']['successUrl'] ) ? urlencode( $feed['meta']['successUrl'] ) :  get_bloginfo( 'url' ) ,
+                'success_url' => ! empty( $feed['meta']['successUrl'] ) ? urlencode( $feed['meta']['successUrl'] ) : $successUrl,
                 'fail_url' => ! empty( $feed['meta']['failUrl'] ) ? urlencode( $feed['meta']['failUrl'] ) :  get_bloginfo( 'url' ) ,
-                'notification_url' => 'http://b22f4274.ngrok.io/wordpress/?page=gf_pipwave_ipn', //urlencode( get_bloginfo( 'url' ) . '/?page=gf_pipwave_ipn' ), //$notificationUrl,
+                'notification_url' => 'https://c6467b63.ngrok.io/wordpress/?page=gf_pipwave_ipn', //urlencode( get_bloginfo( 'url' ) . '/?page=gf_pipwave_ipn' ),
             ), 
         );
-
-        /*
-        $itemInfo = array();
-        foreach ($x as $item) {
-            //$product = $item->getProduct();
-
-            // some weird things came out (repetition) if without if else
-            //if ((float)$product->getPrice()!=0) {
-            if ((float)$item!=0) {
-            $itemInfo[] = array(
-                'name' => $x,
-                'sku' => $x,
-                'currency_code' => rgar( $entry, 'currency' ),
-                'amount' => $x,
-                'quantity' => $x,
-                );
-            }
-        }
-        if (count($itemInfo) > 0) {
-            $data['item_info'] = $itemInfo;
-        }
-        */
         return $data;
 
     }
 
-    function setSignatureParam( $data ) {
-        //need modification, call object manager?
-        //read some_functions_get_information.php [deskstop]
+    public function setSignatureParam( $data ) {
         $signatureParam = array(
             'api_key' => $data['api_key'],
             'api_secret' => $data['api_secret'],
@@ -164,6 +122,131 @@ class GFPipwave extends GFPaymentAddOn {
         );
         return $signatureParam;
     }
+    //compare signature after receiving notification from pipwave
+	public function compareSignature( $signature, $newSignature ) {
+		if ($signature != $newSignature) {
+			return $transaction_status = -1;
+		}
+		return;
+	}
+	//generate signature
+	public function generate_pw_signature( $signatureParam ) {
+		ksort( $signatureParam );
+		$signature = "";
+		foreach ( $signatureParam as $key => $value ) {
+			$signature .= $key . ':' . $value;
+		}
+		return sha1( $signature );
+	}
+	//fire to pipwave
+	public function send_request_to_pw( $data, $pw_api_key, $url ) {
+		$agent = "Mozilla/4.0 ( compatible; MSIE 6.0; Windows NT 5.0 )";
+		$ch = curl_init();
+		curl_setopt( $ch, CURLOPT_PROXY, 'my-proxy.offgamers.lan:3128' );
+		curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'x-api-key:' . $pw_api_key ) );
+		curl_setopt( $ch, CURLOPT_POST, 1 );
+		curl_setopt( $ch, CURLOPT_POSTFIELDS, json_encode( $data ) );
+		curl_setopt( $ch, CURLOPT_URL, $url );
+		curl_setopt( $ch, CURLOPT_VERBOSE, 1 );
+		curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, 2 );
+		curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, FALSE );
+		curl_setopt( $ch, CURLOPT_TIMEOUT, 120 );
+		curl_setopt( $ch, CURLOPT_USERAGENT, $agent );
+		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, TRUE );
+		$response = curl_exec( $ch );
+		if ( $response == false ) {
+			echo "<pre>";
+			echo 'CURL ERROR: ' . curl_errno( $ch ) . '::' . curl_error( $ch );
+			die;
+		}
+		curl_close( $ch );
+		return json_decode( $response, true );
+	}
+	//render sdk THIS is the form that appear
+	//now dont need this
+	public function renderSdk( $response, $api_key, $sdk_url, $loading_img ){
+		if ($response['status'] == 200) {
+			$api_data = json_encode([
+				'api_key' => $api_key,
+				'token' => $response['token']
+			]);
+			$result = <<<EOD
+                    <div id="pwscript" class="text-center"></div>
+                    <div id="pwloading" style="text-align: center;">
+                        <img src="$loading_img" />
+                    </div>
+                    <script type="text/javascript">
+                        var pwconfig = $api_data;
+                        (function (_, p, w, s, d, k) {
+                            var a = _.createElement("script");
+                            a.setAttribute('src', w + d);
+                            a.setAttribute('id', k);
+                            setTimeout(function() {
+                                var reqPwInit = (typeof reqPipwave != 'undefined');
+                                if (reqPwInit) {
+                                    reqPipwave.require(['pw'], function(pw) {
+                                        pw.setOpt(pwconfig);
+                                        pw.startLoad();
+                                    });
+                                } else {
+                                    _.getElementById(k).parentNode.replaceChild(a, _.getElementById(k));
+                                }
+                            }, 800);
+                        })(document, 'script', "$sdk_url", "pw.sdk.min.js", "pw.sdk.min.js", "pwscript");
+                    </script>
+EOD;
+		} else {
+			$result = isset($response['message']) ? (is_array($response['message']) ? implode('; ', $response['message']) : $response['message']) : "Error occured";
+		}
+
+		return $result;
+	}
+
+	//-custom script------------------------------------------------------------------------------------------------
+	//get current page url
+	public function get_current_url() {
+		$pageURL = GFCommon::is_ssl() ? 'https://' : 'http://';
+
+		$server_port = apply_filters( 'gform_paypal_return_url_port', $_SERVER['SERVER_PORT'] );
+
+		if ( $server_port != '80' ) {
+			$pageURL .= $_SERVER['SERVER_NAME'] . ':' . $server_port . $_SERVER['REQUEST_URI'];
+		} else {
+			$pageURL .= $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI'];
+		}
+		return $pageURL;
+	}
+
+	//get $someUrl['URL'],['RENDER_URL'],['LOADING_IMAGE_URL']
+	public function setUrl( $testMode ) {
+		$someUrl = $this->getUrlByTestMode( $testMode );
+		return $someUrl;
+	}
+
+	//used in setUrl()
+	public function getUrlByTestMode( $testMode ) {
+		if ( $testMode == 0 ) {
+			$someUrl = [
+				'URL' => 'https://api.Pipwave.com/payment',
+				'RENDER_URL' => 'https://secure.Pipwave.com/sdk/',
+				'LOADING_IMAGE_URL' => 'https://secure.Pipwave.com/images/loading.gif',
+			];
+		} else {
+			if ( $testMode == 1 ) {
+				$someUrl = [
+					'URL' => 'https://staging-api.Pipwave.com/payment',
+					'RENDER_URL' => 'https://staging-checkout.Pipwave.com/sdk/',
+					'LOADING_IMAGE_URL' => 'https://staging-checkout.Pipwave.com/images/loading.gif',
+				];
+			} else {
+				$someUrl = '';//error
+			}
+		}
+		return $someUrl;
+	}
+
+	//--------------------------------------------------------------------------------------------------------------
+    //this will run when the submit button is clicked
     public function redirect_url( $feed, $submission_data, $form, $entry ) {
 
 	    if ( ! rgempty( 'gf_pipwave_return', $_GET ) ) {
@@ -171,7 +254,7 @@ class GFPipwave extends GFPaymentAddOn {
 	    }
 
 	    //change payment status to 'processing'
-        GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Processing' );
+        GFAPI::update_entry_property( $entry['id'], 'payment_status', 'PendingPayment' );
 
 
 	    $settings = $this->get_plugin_settings();
@@ -224,6 +307,9 @@ class GFPipwave extends GFPaymentAddOn {
 		//$url = '';
 	    return $url;
     }
+
+    //to check whether is pipwave or other payment gateway
+	// called by callback()
 	public function is_callback_valid() {
 		if ( rgget( 'page' ) != 'gf_pipwave_ipn' ) {
 			return false;
@@ -231,6 +317,8 @@ class GFPipwave extends GFPaymentAddOn {
 
 		return true;
 	}
+
+	//receive notification from pipwave [transaction status and data]
 	public function callback() {
 		header( 'HTTP/1.1 200 OK' );
 		echo "OK";
@@ -273,7 +361,7 @@ class GFPipwave extends GFPaymentAddOn {
 		}
 		$entry = GFAPI::get_entry( $order_number );
 
-		//$transaction_status = 9;
+		$transaction_status = 25;
 		//$txn_sub_status = 502;
 		$entry = $this->processNotification( $transaction_status, $entry, $txn_sub_status );
 		$entry = GFAPI::get_entry( $order_number );
@@ -283,12 +371,14 @@ class GFPipwave extends GFPaymentAddOn {
 		return $action;
 	}
 
-	public function processNotification($transaction_status, $entry, $txn_sub_status)
+	//sub function
+	//to get transaction status and change the payment status on gravity form
+	public function processNotification( $transaction_status, $entry, $txn_sub_status )
 	{
 		switch ($transaction_status) {
 			case 5: // pending
 				//i didnt test this
-				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Pending' );
+				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'PendingMerchantConfirmation' );
 				break;
 			case 1: // failed
 				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Fail' );
@@ -301,45 +391,12 @@ class GFPipwave extends GFPaymentAddOn {
 				//$order->setState($status)->setStatus($status);
 
 				//502
-				if ($txn_sub_status==502) {
+				if ( $txn_sub_status == 502 ) {
 					GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Completed' );
-
-					//- later check ------------------------------------------------------------------------------------------------
-					//if auto-invoice enabled
-					/*
-					if ($this->adminConfig->isInvoiceEnabled() == 1) {
-						//create invoice
-						$invoice = $this->invoice->createInvoice($order);
-
-						$order->addStatusHistoryComment('Invoice created automatically', false);
-						$order->addStatusHistoryComment(__('Notified customer about invoice #%1.', $invoice['id']))->setIsCustomerNotified(true);
-						if($invoice && $this->adminConfig->isShippingEnabled( )== 1) {
-							//create shipment
-							$this->shipment->createShipment($order,$invoice);
-							$order->addStatusHistoryComment('Shipment created automatically', false);
-						}
-					}
-					*/
 				}
 				break;
 			case 20: // refunded
 				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'Refunded' );
-
-				/*
-				$invoices = $order->getInvoiceCollection();
-				foreach($invoices as $invoice){
-					$invoiceincrementid = $invoice->getIncrementId();
-				}
-				//var_dump($order);
-
-				$invoiceObj =  $this->invoice->loadByIncrementId($invoiceincrementid);
-				$creditMemo = $this->creditmemoFactory->createByOrder($order);
-
-				$creditMemo->setInvoice($invoiceObj);
-				$this->CreditmemoService->refund($creditMemo);
-
-				$order->addStatusHistoryComment('Payment status: Full refunded.')->setIsCustomerNotified(true);
-				*/
 				break;
 			case 25: // partial refunded
 				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'PartialRefunded' );
@@ -351,17 +408,16 @@ class GFPipwave extends GFPaymentAddOn {
 
 				//$order->addStatusHistoryComment('Payment status: Signature Mismatch.')->setIsCustomerNotified(true);
 				break;
+			case 123456789:
+				break;
 			default:
 				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'UnknownError' );
 		}
 		return $entry;
 	}
-	public function compareSignature($signature, $newSignature) {
-		if ($signature != $newSignature) {
-			return $transaction_status = -1;
-		}
-		return;
-	}
+
+	//not working
+	//this should be the payment success page
 	public static function maybe_thankyou_page() {
 		$instance = self::get_instance();
 
@@ -369,136 +425,56 @@ class GFPipwave extends GFPaymentAddOn {
 			return;
 		}
 
+
 		if ( $str = rgget( 'gf_pipwave_return' ) ) {
 			$str = base64_decode( $str );
+			//var_dump($str);
 
 			parse_str( $str, $query );
 			if ( wp_hash( 'ids=' . $query['ids'] ) == $query['hash'] ) {
+
 				list( $form_id, $lead_id ) = explode( '|', $query['ids'] );
 
 				$form = GFAPI::get_form( $form_id );
 				$lead = GFAPI::get_entry( $lead_id );
-
+				//var_dump($form);
 				if ( ! class_exists( 'GFFormDisplay' ) ) {
 					require_once( GFCommon::get_base_path() . '/form_display.php' );
 				}
 
+
+				//var_dump($lead);
+
 				$confirmation = GFFormDisplay::handle_confirmation( $form, $lead, false );
 
+				//var_dump($confirmation);
+				//die();
 				if ( is_array( $confirmation ) && isset( $confirmation['redirect'] ) ) {
 					header( "Location: {$confirmation['redirect']}" );
 					exit;
 				}
 
-				GFFormDisplay::$submission[ $form_id ] = array( 'is_confirmation' => true, 'confirmation_message' => $confirmation, 'form' => $form, 'lead' => $lead );
+
+				GFFormDisplay::$submission[ $form_id ] = array( 'is_confirmation'      => true,
+				                                                'confirmation_message' => $confirmation,
+				                                                'form'                 => $form,
+				                                                'lead'                 => $lead
+				);
+
+				return false;
 			}
+
 		}
 	}
 
-    //generate signature
-    public function generate_pw_signature( $signatureParam ) {
-        ksort( $signatureParam );
-        $signature = "";
-        foreach ( $signatureParam as $key => $value ) {
-            $signature .= $key . ':' . $value;
-        }
-        return sha1( $signature );
-    }
 
-    //fire to pipwave
-    public function send_request_to_pw( $data, $pw_api_key, $url ) {
-        $agent = "Mozilla/4.0 ( compatible; MSIE 6.0; Windows NT 5.0 )";
-        $ch = curl_init();
-	    curl_setopt( $ch, CURLOPT_PROXY, 'my-proxy.offgamers.lan:3128' );
-        curl_setopt( $ch, CURLOPT_HTTPHEADER, array( 'x-api-key:' . $pw_api_key ) );
-        curl_setopt( $ch, CURLOPT_POST, 1 );
-        curl_setopt( $ch, CURLOPT_POSTFIELDS, json_encode( $data ) );
-        curl_setopt( $ch, CURLOPT_URL, $url );
-        curl_setopt( $ch, CURLOPT_VERBOSE, 1 );
-        curl_setopt( $ch, CURLOPT_SSL_VERIFYHOST, 2 );
-        curl_setopt( $ch, CURLOPT_SSL_VERIFYPEER, FALSE );
-        curl_setopt( $ch, CURLOPT_TIMEOUT, 120 );
-        curl_setopt( $ch, CURLOPT_USERAGENT, $agent );
-        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, TRUE );
-        $response = curl_exec( $ch );
-        if ( $response == false ) {
-            echo "<pre>";
-            echo 'CURL ERROR: ' . curl_errno( $ch ) . '::' . curl_error( $ch );
-            die;
-        }
-        curl_close( $ch );
-        return json_decode( $response, true );
-    }
 
-    //render sdk THIS is the form that appear
-	//now dont need this
-    public function renderSdk($response, $api_key, $sdk_url, $loading_img){
-        if ($response['status'] == 200) {
-            $api_data = json_encode([
-                'api_key' => $api_key,
-                'token' => $response['token']
-            ]);
-            $result = <<<EOD
-                    <div id="pwscript" class="text-center"></div>
-                    <div id="pwloading" style="text-align: center;">
-                        <img src="$loading_img" />
-                    </div>
-                    <script type="text/javascript">
-                        var pwconfig = $api_data;
-                        (function (_, p, w, s, d, k) {
-                            var a = _.createElement("script");
-                            a.setAttribute('src', w + d);
-                            a.setAttribute('id', k);
-                            setTimeout(function() {
-                                var reqPwInit = (typeof reqPipwave != 'undefined');
-                                if (reqPwInit) {
-                                    reqPipwave.require(['pw'], function(pw) {
-                                        pw.setOpt(pwconfig);
-                                        pw.startLoad();
-                                    });
-                                } else {
-                                    _.getElementById(k).parentNode.replaceChild(a, _.getElementById(k));
-                                }
-                            }, 800);
-                        })(document, 'script', "$sdk_url", "pw.sdk.min.js", "pw.sdk.min.js", "pwscript");
-                    </script>
-EOD;
-        } else {
-            $result = isset($response['message']) ? (is_array($response['message']) ? implode('; ', $response['message']) : $response['message']) : "Error occured";
-        }
 
-        return $result;
-    }
+
 
     //- OTHERS ---------------------------------------------------------------------------------------------------------------------------------------
     
-    //get $someUrl['URL'],['RENDER_URL'],['LOADING_IMAGE_URL']
-    public function setUrl( $testMode ) {
-        $someUrl = $this->getUrlByTestMode( $testMode );
-        return $someUrl;
-    }
 
-    //used in setUrl()
-    public function getUrlByTestMode( $testMode ) {
-        if ( $testMode == 0 ) {
-            $someUrl = [
-                'URL' => 'https://api.Pipwave.com/payment',
-                'RENDER_URL' => 'https://secure.Pipwave.com/sdk/',
-                'LOADING_IMAGE_URL' => 'https://secure.Pipwave.com/images/loading.gif',
-            ];
-        } else {
-            if ( $testMode == 1 ) {
-                $someUrl = [
-                    'URL' => 'https://staging-api.Pipwave.com/payment',
-                    'RENDER_URL' => 'https://staging-checkout.Pipwave.com/sdk/',
-                    'LOADING_IMAGE_URL' => 'https://staging-checkout.Pipwave.com/images/loading.gif',
-                ];
-            } else {
-                $someUrl = '';//error
-            }
-        }
-        return $someUrl;
-    }
     //-ADMIN----------------------------------------------------------------------------
     
     
@@ -532,6 +508,7 @@ EOD;
                         'tooltip'           => '<h6>' . esc_html__( 'API Secret', 'translator' ) . '</h6>' . sprintf( esc_html__( 'API Secret provided by pipwave is in this %slink%s.', 'translator' ), '<a href="https://merchant.pipwave.com/development-setting/index" target="_blank">', '</a>' ),
                      ),
                     //third row
+	                /*
                     array(
                         'name'              => 'test_mode',
                         'label'             => esc_html__( 'Test Mode', 'translator' ),
@@ -550,6 +527,7 @@ EOD;
                         ),
                         'horizontal'        => true,
                     ),
+	                */
                     //save
                     array( 
                         'type'              => 'save',
@@ -730,7 +708,9 @@ EOD;
     
     
     //--to tell what notification event we have------------------------------------------------------------------
-    public function supported_notification_events( $form ) {
+    /*
+     *
+     public function supported_notification_events( $form ) {
 
         // If this form does not have feed, return false.
         if ( ! $this->has_feed( $form['id'] ) ) {
@@ -744,59 +724,64 @@ EOD;
             'fail_payment'              => esc_html__( 'Payment Failed', 'translator' ),
         );
     }
-    
+    */
     //-- our own custom pipwave page ---------------------------------------------------------------------------------------------------------
+	/**
+	 *
+	 */
 	public function plugin_page(){
 
+
+
     	$html = <<<EOD
-    	<style>
-	        .center {
-			    text-align: center;
-			}	
-		</style>
-			<div class = "center"><img src="https://www.pipwave.com/wp-content/themes/zerif-lite-child/images/logo_bnw.png" /></div>
-            <h1>Configure pipwave in Gravity Form</h1>
-            <p>You will need a pipwave account. If you don't have one, don't worry, you can create one during the configuration process.</p>
-            <h2>There are two settings you have to configure:</h2>
-            <pre>	
+<style>
+    .center {
+	    text-align: center;
+	}	
+</style>
+	<div class = "center"><img src="https://www.pipwave.com/wp-content/themes/zerif-lite-child/images/logo_bnw.png" /></div>
+    <h1>Configure pipwave in Gravity Form</h1>
+    <p>You will need a pipwave account. If you don't have one, don't worry, you can create one during the configuration process.</p>
+    <h2>There are two settings you have to configure:</h2>
+<pre>	
     	DASHBOARD->FORM->SETTING->PIPWAVE
 	DASHBOARD->FORM->SETTING->PIPWAVE
-		</pre>
-		<p>Yes, confusing right? Lets follow the instructions below. And you will know what the differences between these two.</p>
-		    <h1>pic/screenshot here</h1>
-		    <p>a</p><p>a</p>
-		    <h3>Configuration 1</h3>
-			    <ol>
-				    <li>CLICK 'Dashboard'</li>
-				    <li>HOVER to 'form' [don't click 'form']</li>
-				    <li>CLICK 'Settings' [the one that appear after you hover] [not the setting below form]</li>
-				    <li>CLICK 'Pipwave'</li>
-				    <li>ENTER pipwave api key and api secret</li>
-				    <li>links are available on the 'question mark'</li>
-				    <li>Set 'TestMode' to 'No'</li>
-				    <li>Let's go to the nest one</li>
-			    </ol>
-		    <h3>Configuration 2</h3>
-			    <ol>
-				    <li>CLICK 'Dashboard'</li>
-				    <li>CLICK 'Form' [this time is click it]</li>
-				    <li>HOVER/SELECT any form</li>
-				    <li>CLICK 'Settings'</li>
-					<li>CLICK 'Pipwave'</li>
-					<li>CLICK 'Addnew'</li>
-					<li>FILL in the information [* means it is necessary]</li>
-			    </ol>
-
+</pre>
 EOD;
+        echo $html;
+		$download_button_url = GFCommon::get_base_url() . '../../gravityformspipwave/images/aaa.jpg';
+        $html = '<img src = ' . $download_button_url . '></img>';
+        echo $html;
 
-    	echo $html;
+		$img = GFCommon::get_base_url() . '../../gravityformspipwave/images/01.png';
+		$html = '<img src = ' . $img . '></img>';
+		echo $html;
 
-    	$html2 = <<<EOD
-    	
-			<h1>asdfgv</h1>
-<img src="https://www.pipwave.com/wp-content/themes/zerif-lite-child/images/logo_bnw.png" />
-EOD;
-    	echo $html2;
+		$html = '
+<h3>Configuration 1</h3>
+    <ol>
+	    <li>CLICK `Dashboard`</li>
+	    <li>HOVER to `form` [don\'t click `form`]</li>
+	    <li>CLICK `Settings` [the one that appear after you hover] [not the setting below form]</li>
+	    <li>CLICK `Pipwave`</li>
+	    <li>ENTER pipwave api key and api secret</li>
+	    <li>links are available on the `question mark`</li>
+	    <li>Let\'s go to the nest one</li>
+    </ol>
+<h3>Configuration 2</h3>
+    <ol>
+	    <li>CLICK `Dashboard`</li>
+	    <li>CLICK `Form` [this time is click it]</li>
+	    <li>HOVER/SELECT any form</li>
+	    <li>CLICK `Settings`</li>
+		<li>CLICK `Pipwave`</li>
+		<li>CLICK `Addnew`</li>
+		<li>FILL in the information [* means it is necessary]</li>
+    </ol>
+		';
+
+		echo $html;
+
 
 		
 	}

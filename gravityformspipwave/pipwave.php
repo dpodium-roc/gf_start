@@ -1,11 +1,11 @@
 <?php
 /*
-Plugin Name: Mari Mari Hom
-Plugin URI: http://www.gravityforms.com
-Description: A tesing plugin from sun
+Plugin Name: pipwave
+Plugin URI: https://www.pipwave.com/
+Description: Simple, reliable, and cost-effective way to accept payments online. And it's free to use!
 Version: 1.0
-Author: RocketNotGenius
-Author URI: http://www.google.com
+Author: pipwave
+Author URI: https://www.pipwave.com/
 ------------------------------------------------------------------------
 * Copyright 2009 -  rocketnotgenius
  *
