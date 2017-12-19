@@ -416,7 +416,7 @@ EOD;
 		return $entry;
 	}
 
-	//not working
+
 	//this should be the payment success page
 	public static function maybe_thankyou_page() {
 		$instance = self::get_instance();
@@ -740,24 +740,49 @@ EOD;
 	}	
 </style>
 	<div class = "center"><img src="https://www.pipwave.com/wp-content/themes/zerif-lite-child/images/logo_bnw.png" /></div>
-    <h1>Configure pipwave in Gravity Form</h1>
-    <p>You will need a pipwave account. If you don't have one, don't worry, you can create one during the configuration process.</p>
-    <h2>There are two settings you have to configure:</h2>
-<pre>	
-    	DASHBOARD->FORM->SETTING->PIPWAVE
-	DASHBOARD->FORM->SETTING->PIPWAVE
-</pre>
+    <h1>Install & Configure pipwave in Gravity Forms</h1>
+    <p>You will need a pipwave account. If you don't have one, don't worry, you can create one during the configuration process. Please click one of the option below :</p>
+    	<ul>
+    		<li><a href="#figure">With Figure</a></li>
+    		<li><a href="#text">Only Text</a></li>
+    	</ul>
+	<h2>Getting Started</h2>
+	<h4 id="figure">With figure</h4>
 EOD;
         echo $html;
-		$download_button_url = GFCommon::get_base_url() . '../../gravityformspipwave/images/aaa.jpg';
-        $html = '<img src = ' . $download_button_url . '></img>';
-        echo $html;
 
-		$img = GFCommon::get_base_url() . '../../gravityformspipwave/images/01.png';
-		$html = '<img src = ' . $img . '></img>';
-		echo $html;
+
+		$message = [
+			'',
+			'Click Dashboard',//1
+			'Click Plugins',//2
+			'Search for our plugin. If found, please proceed to step 11. If not found please proceed to next step.',
+			'Click Add New',
+			'Click Upload Plugin',
+			'Click Browse...',
+			'Select the zip file of the plugin',
+			'Click open. Then Click Install Now',
+			'Click Dashboard. Then hover to Plugins. Then Click Installed Plugins',
+			'Find our plugin (pipwave). Then Click Activate',
+			'Click Settings',
+			'Key in Api key and secret. Both of them can be obtained in the "question" figure',
+			'Click Form',
+			'Select your form, Click Setting, then Click pipwave',
+			'Click pipwave',
+			'Click Add New, then enter the information required. \'*\' firgure means the information is needed',
+		];
+
+		for ( $i = 1; $i < 17; $i++) {
+			$img = GFCommon::get_base_url() . '../../gravityformspipwave/images/height/' . $i . 'height.png';
+			$html = '<p>Step ' . $i . ' ' . $message[$i] . '</p>';
+			$html .= '<img src = ' . $img . ' width="1000" ></img>';
+			echo $html;
+		}
+
+
 
 		$html = '
+<h4 id="text">Only Text</h4>
 <h3>Configuration 1</h3>
     <ol>
 	    <li>CLICK `Dashboard`</li>
