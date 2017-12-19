@@ -103,7 +103,7 @@ class GFPipwave extends GFPaymentAddOn {
             'api_override' => array(
                 'success_url' => ! empty( $feed['meta']['successUrl'] ) ? urlencode( $feed['meta']['successUrl'] ) : $successUrl,
                 'fail_url' => ! empty( $feed['meta']['failUrl'] ) ? urlencode( $feed['meta']['failUrl'] ) :  get_bloginfo( 'url' ) ,
-                'notification_url' => 'https://c6467b63.ngrok.io/wordpress/?page=gf_pipwave_ipn', //urlencode( get_bloginfo( 'url' ) . '/?page=gf_pipwave_ipn' ),
+                'notification_url' => 'https://a3a9ef36.ngrok.io/wordpress/?page=gf_pipwave_ipn', //urlencode( get_bloginfo( 'url' ) . '/?page=gf_pipwave_ipn' ),
             ), 
         );
         return $data;
@@ -361,7 +361,7 @@ EOD;
 		}
 		$entry = GFAPI::get_entry( $order_number );
 
-		$transaction_status = 25;
+		//$transaction_status = 25;
 		//$txn_sub_status = 502;
 		$entry = $this->processNotification( $transaction_status, $entry, $txn_sub_status );
 		$entry = GFAPI::get_entry( $order_number );
@@ -756,7 +756,7 @@ EOD;
 			'',
 			'Click Dashboard',//1
 			'Click Plugins',//2
-			'Search for our plugin. If found, please proceed to step 11. If not found please proceed to next step.',
+			'Search for our plugin. If found, please proceed to step 10. If not found please proceed to next step.',
 			'Click Add New',
 			'Click Upload Plugin',
 			'Click Browse...',
@@ -782,8 +782,25 @@ EOD;
 
 
 		$html = '
-<h4 id="text">Only Text</h4>
-<h3>Configuration 1</h3>
+<h3 id="text">Only Text</h3>
+<h4>Installation</h4>
+	<ol>
+		<li>CLICK Dashboard</li>
+		<li>CLICK plugins</li>
+		<li>Search the plugin</li>
+		<ol>
+			<li>If not found, download the zip file of the plugin from any source</li>
+			<li>Go back to gravity form</li> 
+			<li>CLICK Add New</li>
+			<li>CLICK upload plugin</li>
+			<li>CLICK browse</li>
+			<li>SELECT the zip file</li>
+			<li>CLICK Install</li>
+		</ol>
+		<li>CLICK plugins</li>
+		<li>CLICK activate</li>
+	</ol>
+<h4>Configuration 1</h4>
     <ol>
 	    <li>CLICK `Dashboard`</li>
 	    <li>HOVER to `form` [don\'t click `form`]</li>
@@ -793,7 +810,7 @@ EOD;
 	    <li>links are available on the `question mark`</li>
 	    <li>Let\'s go to the nest one</li>
     </ol>
-<h3>Configuration 2</h3>
+<h4>Configuration 2</h4>
     <ol>
 	    <li>CLICK `Dashboard`</li>
 	    <li>CLICK `Form` [this time is click it]</li>
