@@ -285,7 +285,7 @@ EOD;
 		$timestamp          = ( isset( $post_data['timestamp'] ) && !empty( $post_data['timestamp'] ) ) ? $post_data['timestamp'] : time();
 		$pw_id              = ( isset( $post_data['pw_id'] ) && !empty( $post_data['pw_id'] ) ) ? $post_data['pw_id'] : '';
 		$order_number       = ( isset( $post_data['txn_id'] ) && !empty( $post_data['txn_id'] ) ) ? $post_data['txn_id'] : '';
-		$order_id           = ( isset( $post_data['extra_param1'] ) && !empty( $post_data['extra_param1'] ) ) ? $post_data['extra_param1'] : '';
+		$pg_txn_id           = ( isset( $post_data['pg_txn_id'] ) && !empty( $post_data['pg_txn_id'] ) ) ? $post_data['pg_txn_id'] : '';
 		$amount             = ( isset( $post_data['amount'] ) && !empty( $post_data['amount'] ) ) ? $post_data['amount'] : '';
 		$currency_code      = ( isset( $post_data['currency_code'] ) && !empty( $post_data['currency_code'] ) ) ? $post_data['currency_code'] : '';
 		$transaction_status = ( isset( $post_data['transaction_status'] ) && !empty( $post_data['transaction_status'] ) ) ? $post_data['transaction_status'] : '';
@@ -320,16 +320,18 @@ EOD;
 		}
 		$entry                  = GFAPI::get_entry( $order_number );
 
+		var_dump($entry['id']);
 		$payment_method         = preg_replace("/[^a-zA-Z]+/", "", $payment_method);
 		GFAPI::update_entry_property( $entry['id'], 'payment_method', $payment_method );
 		GFAPI::update_entry_property( $entry['id'], 'payment_amount', $amount );
-		GFAPI::update_entry_property( $entry['id'], 'transaction_id', $order_number );
+		GFAPI::update_entry_property( $entry['id'], 'transaction_id', $pg_txn_id );
 		$entry['payment_method'] = $payment_method;
+		$entry                  = GFAPI::get_entry( $order_number );
 		//var_dump( $entry );
 		//print_r($entry);
 		//$transaction_status = -1;
 		//$txn_sub_status = 502;
-		$action = $this->processNotification( $transaction_status, $entry, $txn_sub_status, $amount, $refund );
+		$action = $this->processNotification( $transaction_status, $entry, $txn_sub_status, $amount, $refund, $pg_txn_id );
 		//$entry = GFAPI::get_entry( $order_number );
 		//var_dump($order_number);
 
@@ -359,9 +361,10 @@ EOD;
 	 * @uses    GFAPI::update_entry_property()      -- to update payment status
 	 * @uses    GFPaymentAddOn::add_note()          -- to write note
 	 */
-	public function processNotification( $transaction_status, $entry, $txn_sub_status, $amount, $refund )
+	public function processNotification( $transaction_status, $entry, $txn_sub_status, $amount, $refund, $pg_txn_id )
 	{
-		$action = '';
+
+		$action[] = '';
 		switch ( $transaction_status ) {
 			case 5: // pending
 				GFAPI::update_entry_property( $entry['id'], 'payment_status', 'PendingMerchantConfirmation' );
@@ -386,7 +389,7 @@ EOD;
 				if ( $txn_sub_status == 502 ) {
 					$action['id']               = $entry['id'] . '_Paid';
 					$action['type']             = 'complete_payment';
-					$action['transaction_id']   = $entry['id'];
+					$action['transaction_id']   = $pg_txn_id;
 					$action['amount']           = $amount;
 					$action['entry_id']         = $entry['id'];
 					$action['payment_date']     = gmdate( 'y-m-d H:i:s' );
@@ -402,7 +405,7 @@ EOD;
 			case 20: // refunded
 				$action['id']             = $entry['id'] . '_Refunded';
 				$action['type']           = 'refund_payment';
-				$action['transaction_id'] = $entry['id'];
+				$action['transaction_id'] = $pg_txn_id;
 				$action['entry_id']       = $entry['id'];
 				$action['amount']         = $refund;
 
@@ -414,7 +417,7 @@ EOD;
 			case 25: // partial refunded
 				$action['id']             = $entry['id'] . '_Refunded';
 				$action['type']           = 'refund_payment';
-				$action['transaction_id'] = $entry['id'];
+				$action['transaction_id'] = $pg_txn_id;
 				$action['entry_id']       = $entry['id'];
 				$action['amount']         = $refund;
 
